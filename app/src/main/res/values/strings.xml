@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">EkAnek</string>
+    <string name="app_label">EkAnek</string>
+    <string name="search_hint">Find Image</string>
+    <string name="string_done">DONE</string>
+    <string name="two">two</string>
+    <string name="three">three</string>
+    <string name="four">four</string>
+</resources>

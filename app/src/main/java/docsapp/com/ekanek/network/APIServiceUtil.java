@@ -1,0 +1,98 @@
+package docsapp.com.ekanek.network;
+
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.util.Log;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.Cache;
+import okhttp3.Headers;
+import okhttp3.Interceptor;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.logging.HttpLoggingInterceptor;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+
+//singleton class for api service utility
+public class APIServiceUtil {
+
+    private static final long NETWORK_TIMEOUT = 10;
+    private static Retrofit mRetrofit;
+    private static APIServiceUtil sInstance;
+    private static Context mContext;
+
+    private static File httpCacheDir = new File("cacheFlikr");
+    private static Cache cache = new Cache(httpCacheDir, 20 * 1024 * 1024);
+
+    //INTERCEPTORS
+    private static final Interceptor REWRITE_RESPONSE_INTERCEPTOR = new Interceptor() {
+        @Override
+        public Response intercept(Chain chain) throws IOException {
+            Request request = chain.request();
+            Response response = chain.proceed(request);
+            String cacheControl = response.header("Cache-Control");
+            if (cacheControl == null || cacheControl.contains("no-store") || cacheControl.contains("no-cache") ||
+                    cacheControl.contains("must-revalidate") || cacheControl.contains("max-age=0")) {
+                return response.newBuilder()
+                        .header("Cache-Control", "public, max-age=" + 10)
+                        .build();
+            } else {
+                return response;
+            }
+        }
+    };
+
+    private static final Interceptor OFFLINE_INTERCEPTOR = new Interceptor() {
+        @Override
+        public Response intercept(Chain chain) throws IOException {
+            Request request = chain.request();
+            if (!isOnline()) {
+                int maxStale = 60 * 60 * 24 * 28; // tolerate 4-weeks stale
+                request = request.newBuilder()
+                        .header("Cache-Control", "public, only-if-cached,max-stale=" + maxStale)
+                        .build();
+            }
+            return chain.proceed(request);
+        }
+    };
+
+    private APIServiceUtil(Context context) {
+
+        mRetrofit = new Retrofit.Builder()
+                .baseUrl("https://api.flickr.com/services/rest/")
+                .addConverterFactory(GsonConverterFactory.create())
+                .client(new OkHttpClient.Builder().cache(cache)
+                        .addInterceptor(REWRITE_RESPONSE_INTERCEPTOR)
+                        .addInterceptor(OFFLINE_INTERCEPTOR)
+                        .build()
+                ).build();
+
+
+    }
+
+
+
+    public static APIServiceUtil getsInstance(Context context) {
+        mContext = context;
+        if (sInstance == null) {
+            sInstance = new APIServiceUtil(context);
+        }
+        return sInstance;
+    }
+
+    public APIInterface getAPIInterface() {
+        return mRetrofit.create(APIInterface.class);
+    }
+
+    public static boolean isOnline() {
+        ConnectivityManager cm = (ConnectivityManager) mContext.getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo netInfo = cm.getActiveNetworkInfo();
+        return netInfo != null && netInfo.isConnected();
+    }
+}
