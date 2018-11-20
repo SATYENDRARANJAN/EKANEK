@@ -27,8 +27,8 @@ public class APIServiceUtil {
     private static APIServiceUtil sInstance;
     private static Context mContext;
 
-    private static File httpCacheDir = new File("cacheFlikr");
-    private static Cache cache = new Cache(httpCacheDir, 20 * 1024 * 1024);
+    private static File httpCacheDir ;
+    private static Cache cache ;
 
     //INTERCEPTORS
     private static final Interceptor REWRITE_RESPONSE_INTERCEPTOR = new Interceptor() {
@@ -37,14 +37,23 @@ public class APIServiceUtil {
             Request request = chain.request();
             Response response = chain.proceed(request);
             String cacheControl = response.header("Cache-Control");
-            if (cacheControl == null || cacheControl.contains("no-store") || cacheControl.contains("no-cache") ||
-                    cacheControl.contains("must-revalidate") || cacheControl.contains("max-age=0")) {
-                return response.newBuilder()
-                        .header("Cache-Control", "public, max-age=" + 10)
+        /*    if (!isOnline()) {
+                int maxStale = 60 * 60 * 24 * 28; // tolerate 4-weeks stale
+                request = request.newBuilder()
+                        .header("Cache-Control", "public, only-if-cached,max-stale=" + maxStale)
                         .build();
-            } else {
-                return response;
-            }
+                return chain.proceed(request);
+            } else {*/
+
+                if (cacheControl == null || cacheControl.contains("no-store") || cacheControl.contains("no-cache") ||
+                        cacheControl.contains("must-revalidate") || cacheControl.contains("max-age=0")) {
+                    return response.newBuilder()
+                            .header("Cache-Control", "public, max-age=" + 10)
+                            .build();
+                } else {
+                    return response;
+                }
+            //}
         }
     };
 
@@ -63,7 +72,9 @@ public class APIServiceUtil {
     };
 
     private APIServiceUtil(Context context) {
-
+        httpCacheDir = new File(mContext.getCacheDir(),"cacheFlikr");
+        cache = new Cache(httpCacheDir, 20 * 1024 * 1024);
+       mContext = context;
         mRetrofit = new Retrofit.Builder()
                 .baseUrl("https://api.flickr.com/services/rest/")
                 .addConverterFactory(GsonConverterFactory.create())
